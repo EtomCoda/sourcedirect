@@ -1,31 +1,19 @@
-# ╔══════════════════════════════════════════════════════════════════╗
-# ║  CART & CHECKOUT PAGES                                           ║
-# ║  Module : modules/cart_page.py                                   ║
-# ║  Role   : CartPage (item list + qty controls) and                ║
-# ║           CheckoutPage (success confirmation screen)             ║
-# ╚══════════════════════════════════════════════════════════════════╝
-
 import tkinter as tk
 from tkinter import messagebox
 import modules.cart_manager as cart
 from modules.constants import *
 
 
-# ─────────────────────────────────────────────────────────────────────
 class CartPage:
-    """
-    Full-screen cart popup.
-    Shows all added products with individual quantity controls,
-    a running grand total, and a Proceed to Checkout CTA.
-    """
-
-    def __init__(self, parent, on_checkout_success=None):
+    def __init__(self, parent, on_checkout_success=None,
+                 data_manager=None, buyer_name: str = "Buyer"):
         self.parent = parent
         self.on_checkout_success = on_checkout_success
+        self.data_manager = data_manager
+        self.buyer_name = buyer_name
         self._popup = None
 
     def open(self):
-        """Opens (or re-focuses) the cart popup."""
         if self._popup and self._popup.winfo_exists():
             self._popup.lift()
             return
@@ -40,8 +28,8 @@ class CartPage:
         popup.grab_set()
         self._popup = popup
 
-        # ── Header ────────────────────────────────────────────────
-        hdr = tk.Frame(popup, bg=BG_HEADER, padx=16, pady=14)
+        hdr = tk.Frame(popup, bg=BG_HEADER, padx=16, pady=14,
+                       highlightbackground=BORDER, highlightthickness=1)
         hdr.pack(fill="x")
         tk.Button(hdr, text="←", font=(FONT_FAMILY, 16), bg=BG_HEADER, fg=TEXT_WHITE,
                   relief="flat", bd=0, cursor="hand2",
@@ -52,13 +40,10 @@ class CartPage:
                  bg=BG_HEADER, fg=TEXT_GRAY).pack(side="right")
 
         items = cart.get_items()
-
-        # ── Empty state ───────────────────────────────────────────
         if not items:
             ef = tk.Frame(popup, bg=BG_DARK)
             ef.pack(fill="both", expand=True)
-            tk.Label(ef, text="🛒", font=(FONT_FAMILY, 52),
-                     bg=BG_DARK).pack(pady=(120, 10))
+            tk.Label(ef, text="🛒", font=(FONT_FAMILY, 52), bg=BG_DARK).pack(pady=(120, 10))
             tk.Label(ef, text="Your cart is empty",
                      font=(FONT_FAMILY, 16, "bold"), bg=BG_DARK, fg=TEXT_WHITE).pack()
             tk.Label(ef, text="Go back and add items from the marketplace",
@@ -69,7 +54,6 @@ class CartPage:
                       command=popup.destroy).pack(pady=(30, 0))
             return
 
-        # ── Scrollable item list ───────────────────────────────────
         list_wrap = tk.Frame(popup, bg=BG_DARK)
         list_wrap.pack(fill="both", expand=True, padx=14, pady=(14, 0))
 
@@ -92,41 +76,35 @@ class CartPage:
         for pname, pdata in items.items():
             self._render_item(inner, pname, pdata, _reload)
 
-        # ── Bottom bar ────────────────────────────────────────────
         bottom = tk.Frame(popup, bg=BG_DARK, padx=14, pady=14)
         bottom.pack(fill="x", side="bottom")
-
         total = cart.get_total()
         tk.Label(bottom, text=f"Grand Total:  N{total:,.0f}",
                  font=(FONT_FAMILY, 13, "bold"), bg=BG_DARK, fg=PRIMARY).pack(anchor="w", pady=(0, 10))
-
         tk.Button(
             bottom, text="Proceed to Checkout",
             font=(FONT_FAMILY, 12, "bold"),
-            bg=BG_CARD_ALT, fg=TEXT_WHITE,
-            activebackground=PRIMARY, activeforeground=BG_DARK,
+            bg=PRIMARY, fg="#FFFFFF",
+            activebackground=PRIMARY_DARK, activeforeground="#FFFFFF",
             relief="flat", bd=0, pady=14, cursor="hand2",
             command=lambda: self._proceed(popup),
         ).pack(fill="x")
 
     def _render_item(self, parent, pname: str, pdata: dict, on_remove):
-        """Renders a single cart item row."""
         from modules.catalog_components import CatalogComponents
 
-        card = tk.Frame(parent, bg=BG_CARD, padx=14, pady=14)
+        card = tk.Frame(parent, bg=BG_CARD, padx=14, pady=14,
+                        highlightbackground=BORDER, highlightthickness=1)
         card.pack(fill="x", pady=(0, 8))
 
-        # Thumbnail
-        thumb = tk.Canvas(card, width=60, height=60, bg="#162130", highlightthickness=0)
+        thumb = tk.Canvas(card, width=60, height=60, bg="#D8EEE0", highlightthickness=0)
         thumb.pack(side="left", padx=(0, 14))
         thumb.create_text(30, 30, text=CatalogComponents._product_icon(pname),
                           font=(FONT_FAMILY, 24))
 
-        # Info + controls
         mid = tk.Frame(card, bg=BG_CARD)
         mid.pack(side="left", fill="both", expand=True)
 
-        # Name row + remove
         nr = tk.Frame(mid, bg=BG_CARD)
         nr.pack(fill="x")
         tk.Label(nr, text=(pname if len(pname) <= 22 else pname[:20] + "…"),
@@ -140,7 +118,6 @@ class CartPage:
         tk.Label(mid, text=f"{vendor}  ·  N{pdata['unit_price']:,.0f} / {pdata['unit']}",
                  font=FONT_XS, bg=BG_CARD, fg=PRIMARY).pack(anchor="w")
 
-        # Qty controls
         tk.Label(mid, text="Select quantity", font=(FONT_FAMILY, 8),
                  bg=BG_CARD, fg=TEXT_GRAY).pack(anchor="w", pady=(8, 2))
 
@@ -154,10 +131,11 @@ class CartPage:
             qty_sv.set(str(qty[0]))
             cart.update_qty(p, qty[0])
             sub_var.set(f"N{pdata['unit_price'] * qty[0]:,.0f}")
-            on_remove() # Call the reload callback to update the grand total
+            on_remove()
 
-        ctrl = tk.Frame(qr, bg=BG_INPUT)
+        ctrl = tk.Frame(qr, bg=BG_INPUT, highlightbackground=BORDER, highlightthickness=1)
         ctrl.pack(side="left")
+        # Min qty in cart is 1 (already purchased at minimum 10 from detail)
         tk.Button(ctrl, text="-", font=(FONT_FAMILY, 11, "bold"), bg=BG_INPUT, fg=TEXT_WHITE,
                   relief="flat", bd=0, padx=12, pady=6, cursor="hand2",
                   command=lambda: (qty.__setitem__(0, max(1, qty[0]-1)), _refresh())
@@ -169,28 +147,25 @@ class CartPage:
                   command=lambda: (qty.__setitem__(0, qty[0]+1), _refresh())
                   ).pack(side="left")
 
-        # Item subtotal
         sub_var = tk.StringVar(value=f"N{pdata['unit_price'] * qty[0]:,.0f}")
         tk.Label(qr, textvariable=sub_var, font=(FONT_FAMILY, 11, "bold"),
                  bg=BG_CARD, fg=TEXT_WHITE).pack(side="left", padx=(16, 0))
 
     def _proceed(self, cart_popup):
         cart_popup.destroy()
-        page = CheckoutPage(self.parent, self.on_checkout_success)
+        page = CheckoutPage(self.parent, self.on_checkout_success,
+                            data_manager=self.data_manager,
+                            buyer_name=self.buyer_name)
         page.open()
 
 
-# ─────────────────────────────────────────────────────────────────────
 class CheckoutPage:
-    """
-    Checkout success screen shown after the buyer confirms their order.
-    Displays a checkmark illustration, success text, and a
-    Return to Home Page button that clears the cart.
-    """
-
-    def __init__(self, parent, on_return_home=None):
+    def __init__(self, parent, on_return_home=None,
+                 data_manager=None, buyer_name: str = "Buyer"):
         self.parent = parent
         self.on_return_home = on_return_home
+        self.data_manager = data_manager
+        self.buyer_name = buyer_name
 
     def open(self):
         popup = tk.Toplevel(self.parent)
@@ -200,56 +175,50 @@ class CheckoutPage:
         popup.configure(bg=BG_DARK)
         popup.grab_set()
 
-        # ── Header ────────────────────────────────────────────────
-        hdr = tk.Frame(popup, bg=BG_HEADER, padx=16, pady=14)
+        hdr = tk.Frame(popup, bg=BG_HEADER, padx=16, pady=14,
+                       highlightbackground=BORDER, highlightthickness=1)
         hdr.pack(fill="x")
         tk.Button(hdr, text="←", font=(FONT_FAMILY, 16), bg=BG_HEADER, fg=TEXT_WHITE,
                   relief="flat", bd=0, cursor="hand2",
                   command=popup.destroy).pack(side="left")
-        tk.Label(hdr, text="Cart", font=(FONT_FAMILY, 14, "bold"),
+        tk.Label(hdr, text="Checkout", font=(FONT_FAMILY, 14, "bold"),
                  bg=BG_HEADER, fg=TEXT_WHITE).pack(side="left", padx=(12, 0))
-        tk.Label(hdr, text="👤", font=(FONT_FAMILY, 14),
-                 bg=BG_HEADER, fg=TEXT_GRAY).pack(side="right")
 
-        # ── Order summary strip ───────────────────────────────────
         items = cart.get_items()
         total = cart.get_total()
-        summary_frame = tk.Frame(popup, bg=BG_CARD, padx=16, pady=10)
+        summary_frame = tk.Frame(popup, bg=BG_CARD, padx=16, pady=10,
+                                 highlightbackground=BORDER, highlightthickness=1)
         summary_frame.pack(fill="x", padx=14, pady=(14, 0))
         tk.Label(summary_frame,
                  text=f"{len(items)} item type(s) ordered  ·  Total: N{total:,.0f}",
                  font=FONT_SM_BOLD, bg=BG_CARD, fg=TEXT_WHITE).pack(anchor="w")
 
-        # ── Success content ────────────────────────────────────────
         main = tk.Frame(popup, bg=BG_DARK)
         main.pack(fill="both", expand=True)
 
-        # Success card
-        success_card = tk.Frame(main, bg=BG_CARD, padx=30, pady=40)
+        success_card = tk.Frame(main, bg=BG_CARD, padx=30, pady=40,
+                                highlightbackground=PRIMARY, highlightthickness=2)
         success_card.pack(fill="x", padx=24, pady=(60, 0))
-
         tk.Label(success_card, text="Order Placed!",
                  font=(FONT_FAMILY, 26, "bold"), bg=BG_CARD, fg=PRIMARY).pack()
         tk.Label(success_card, text="Your bulk order has been submitted\nsuccessfully to the seller.",
                  font=FONT_MD, bg=BG_CARD, fg=TEXT_GRAY, justify="center").pack(pady=(10, 20))
-
-        # Order summary inside card
         tk.Frame(success_card, bg=BORDER_LIGHT, height=1).pack(fill="x")
         tk.Label(success_card,
                  text=f"{len(items)} item type(s)   |   Grand Total: N{total:,.0f}",
                  font=FONT_SM_BOLD, bg=BG_CARD, fg=TEXT_WHITE).pack(pady=(14, 0))
 
-        # Delivery note
         note = tk.Frame(main, bg=BG_DARK, padx=24, pady=14)
         note.pack(fill="x")
         tk.Label(note, text="The seller will contact you within 1 business hour\nto confirm delivery details.",
                  font=FONT_XS, bg=BG_DARK, fg=TEXT_MUTED, justify="center").pack()
 
-        # ── Bottom button ─────────────────────────────────────────
         bottom = tk.Frame(popup, bg=BG_DARK, padx=14, pady=14)
         bottom.pack(fill="x", side="bottom")
 
         def _return_home():
+            if self.data_manager:
+                self.data_manager.place_order(self.buyer_name, cart.get_items())
             cart.clear()
             popup.destroy()
             if self.on_return_home:
@@ -258,8 +227,8 @@ class CheckoutPage:
         tk.Button(
             bottom, text="Return to Home Page",
             font=(FONT_FAMILY, 12, "bold"),
-            bg=BG_CARD_ALT, fg=TEXT_WHITE,
-            activebackground=PRIMARY, activeforeground=BG_DARK,
+            bg=PRIMARY, fg="#FFFFFF",
+            activebackground=PRIMARY_DARK, activeforeground="#FFFFFF",
             relief="flat", bd=0, pady=14, cursor="hand2",
             command=_return_home,
         ).pack(fill="x")
